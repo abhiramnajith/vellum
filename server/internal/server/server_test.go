@@ -223,3 +223,53 @@ func readBody(t *testing.T, resp *http.Response) string {
 	}
 	return string(b)
 }
+
+func writeFile(t *testing.T, dir, name, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func getViewBody(t *testing.T, h http.Handler, id string) string {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/view/"+id, nil)
+	req.Host = "127.0.0.1"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return readBody(t, rec.Result())
+}
+
+func TestViewInjectsMermaidOnlyWithDiagram(t *testing.T) {
+	dir := t.TempDir()
+	withDiagram := `<!doctype html><html><body><div class="mermaid">graph TD;A-->B;</div></body></html>`
+	plain := `<!doctype html><html><body><h1>no diagram</h1></body></html>`
+	writeFile(t, dir, "with-20260101-000000.html", withDiagram)
+	writeFile(t, dir, "plain-20260101-000000.html", plain)
+	srv, _ := New(storage.New(dir))
+	h := srv.Handler()
+
+	withBody := getViewBody(t, h, "with-20260101-000000")
+	if !strings.Contains(withBody, "/_vendor/mermaid.min.js") {
+		t.Fatal("diagram artifact missing injected Mermaid runtime")
+	}
+	plainBody := getViewBody(t, h, "plain-20260101-000000")
+	if strings.Contains(plainBody, "/_vendor/mermaid.min.js") {
+		t.Fatal("plain artifact should not get Mermaid runtime")
+	}
+	if !strings.Contains(plainBody, "/_editor/shell.js") {
+		t.Fatal("editor shell should always be injected")
+	}
+}
+
+func TestViewSetsRestrictiveCSP(t *testing.T) {
+	h, id := newTestServer(t)
+	req := httptest.NewRequest("GET", "/view/"+id, nil)
+	req.Host = "127.0.0.1"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	csp := rec.Result().Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "connect-src 'self'") {
+		t.Fatalf("view CSP missing connect-src 'self': %q", csp)
+	}
+}

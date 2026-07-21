@@ -160,7 +160,9 @@ func (s *Server) handleView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(injectShell(data))
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'")
+	_, _ = w.Write(injectAssets(data))
 }
 
 func (s *Server) handleShell(w http.ResponseWriter, r *http.Request) {
@@ -262,17 +264,27 @@ func (s *Server) handleGetAnnotations(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// injectShell inserts the editor <script> just before the closing </body> tag,
-// leaving the artifact's own markup untouched. If there is no </body>, the tag
-// is appended.
-func injectShell(html []byte) []byte {
+// mermaidTag loads the embedded Mermaid runtime; injected only when the
+// artifact actually contains a diagram, so plain artifacts never pay the
+// extra request.
+const mermaidTag = `<script src="/_vendor/mermaid.min.js"></script>`
+
+// injectAssets inserts the editor shell (always) and the Mermaid runtime (only
+// when the artifact contains a .mermaid block) just before </body>, leaving
+// the artifact's own markup untouched. If there is no </body>, the tags are
+// appended.
+func injectAssets(html []byte) []byte {
+	tags := shellTag
+	if bytes.Contains(html, []byte(`class="mermaid"`)) {
+		tags = mermaidTag + "\n" + shellTag
+	}
 	idx := strings.LastIndex(strings.ToLower(string(html)), "</body>")
 	if idx == -1 {
-		return append(append([]byte{}, html...), []byte("\n"+shellTag)...)
+		return append(append([]byte{}, html...), []byte("\n"+tags)...)
 	}
-	out := make([]byte, 0, len(html)+len(shellTag)+2)
+	out := make([]byte, 0, len(html)+len(tags)+2)
 	out = append(out, html[:idx]...)
-	out = append(out, []byte(shellTag+"\n")...)
+	out = append(out, []byte(tags+"\n")...)
 	out = append(out, html[idx:]...)
 	return out
 }
