@@ -45,7 +45,7 @@ if [ -z "$BIN_PATH" ]; then
   base="https://github.com/$REPO/releases/latest/download"
   if curl -fsSL "$base/$asset" -o "$BIN.tmp" 2>/dev/null \
      && curl -fsSL "$base/SHA256SUMS" -o "$HA_HOME/SHA256SUMS.tmp" 2>/dev/null; then
-    want="$(grep " $asset\$" "$HA_HOME/SHA256SUMS.tmp" | awk '{print $1}')"
+    want="$(grep " $asset\$" "$HA_HOME/SHA256SUMS.tmp" | awk '{print $1}' || true)"
     got="$( (command -v sha256sum >/dev/null && sha256sum "$BIN.tmp" || shasum -a 256 "$BIN.tmp") | awk '{print $1}')"
     if [ -n "$want" ] && [ "$want" = "$got" ]; then
       mv "$BIN.tmp" "$BIN"; chmod +x "$BIN"; BIN_PATH="$BIN"
@@ -53,10 +53,12 @@ if [ -z "$BIN_PATH" ]; then
       rm -f "$BIN.tmp"; echo "checksum mismatch for $asset" >&2
     fi
     rm -f "$HA_HOME/SHA256SUMS.tmp"
+  else
+    rm -f "$BIN.tmp" "$HA_HOME/SHA256SUMS.tmp"
   fi
 fi
 if [ -z "$BIN_PATH" ] && command -v go >/dev/null 2>&1; then
-  go install "github.com/$REPO/server@latest"
+  go install "github.com/$REPO/server@latest" || true
   gobin="$(go env GOBIN)"; [ -z "$gobin" ] && gobin="$(go env GOPATH)/bin"
   [ -x "$gobin/server" ] && BIN_PATH="$gobin/server"
 fi
