@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artifacts</title>
+<style>
+  :root {
+    --bg:#f7f8fa; --surface:#fff; --ink:#171a1f; --muted:#5b6672; --faint:#8a94a0;
+    --border:#e3e7ec; --accent:#2f45c5; --accent-wash:#eef1fe;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0d1014; --surface:#14181e; --ink:#e7ecf2; --muted:#a2adba; --faint:#6b7684;
+      --border:#232a33; --accent:#8b98ff; --accent-wash:#191d33;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body); line-height:1.6; }
+  .wrap { max-width:56rem; margin:0 auto; padding:clamp(1.25rem,4vw,3rem) clamp(1.15rem,5vw,2rem) 5rem; }
+  .plate { display:flex; align-items:center; gap:.7rem; font-family:var(--font-mono); font-size:.74rem;
+           letter-spacing:.02em; color:var(--muted); padding-bottom:.7rem; border-bottom:1px solid var(--border); margin-bottom:2rem; }
+  .plate__mark { width:.62rem; height:.62rem; background:var(--accent); border-radius:2px; flex:none; }
+  h1 { font-size:clamp(1.8rem,5vw,2.4rem); letter-spacing:-.02em; font-weight:720; margin:0 0 .3rem; }
+  .sub { color:var(--muted); margin:0 0 2rem; }
+  ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.6rem; }
+  li a {
+    display:flex; align-items:baseline; gap:.9rem; flex-wrap:wrap;
+    text-decoration:none; color:inherit;
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:.85rem 1.1rem; transition:border-color .15s, transform .15s;
+  }
+  li a:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .id { font-family:var(--font-mono); font-size:.9rem; font-weight:600; color:var(--ink); }
+  .meta { font-family:var(--font-mono); font-size:.72rem; color:var(--faint); margin-left:auto; }
+  .empty { background:var(--surface); border:1px dashed var(--border); border-radius:10px;
+           padding:2rem; text-align:center; color:var(--muted); }
+  .empty code { font-family:var(--font-mono); background:var(--accent-wash); color:var(--accent);
+                padding:.12em .4em; border-radius:5px; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="plate">
+      <span class="plate__mark" aria-hidden="true"></span>
+      <span>html-artifacts</span>
+    </header>
+
+    <h1>Artifacts</h1>
+    <p class="sub">{{.Count}} artifact{{if ne .Count 1}}s{{end}} on this machine.</p>
+
+    {{if .Rows}}
+    <ul>
+      {{range .Rows}}
+      <li><a href="/view/{{.ID}}">
+        <span class="id">{{.ID}}</span>
+        <span class="meta">{{.When}} · {{.Size}}</span>
+      </a></li>
+      {{end}}
+    </ul>
+    {{else}}
+    <div class="empty">
+      No artifacts yet. Ask your agent for something visual, or drop an
+      <code>&lt;id&gt;.html</code> file into the artifacts directory.
+    </div>
+    {{end}}
+  </div>
+</body>
+</html>

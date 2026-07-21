@@ -1,15 +1,17 @@
 // Command html-artifacts serves self-contained HTML artifacts and their
 // annotations from a local directory, bound to 127.0.0.1 only.
-//
-// Phase 0 ships a compiling skeleton: the `serve` subcommand parses flags and
-// reports its configuration. The HTTP handlers and storage layer arrive in
-// Phase 2.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"time"
+
+	"github.com/abhiramnajith/html-artifacts/server/internal/server"
+	"github.com/abhiramnajith/html-artifacts/server/internal/storage"
 )
 
 func main() {
@@ -45,8 +47,25 @@ func serve(args []string) error {
 		return err
 	}
 
-	// Phase 2 wires up the HTTP server against internal/server + internal/storage.
-	fmt.Printf("serve: would bind 127.0.0.1:%d serving %s (not implemented until Phase 2)\n", *port, *dir)
+	srv, err := server.New(storage.New(*dir))
+	if err != nil {
+		return fmt.Errorf("start server: %w", err)
+	}
+
+	addr := server.ListenAddr(*port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", addr, err)
+	}
+
+	httpSrv := &http.Server{
+		Handler:           srv.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	fmt.Printf("html-artifacts serving %s at http://%s/artifacts\n", *dir, addr)
+	if err := httpSrv.Serve(ln); err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
 	return nil
 }
 

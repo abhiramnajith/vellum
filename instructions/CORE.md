@@ -133,14 +133,33 @@ The template ends with a block delimited by `<!-- mermaid:begin -->` …
 
 ## 5. After writing — open it
 
-Open the finished artifact in the browser. There is no server yet (that arrives
-in a later phase), so open the file directly, cross-platform:
+Open the finished artifact in the browser. Prefer the local viewer server (it
+lists all artifacts and, later, hosts the annotation editor); fall back to
+opening the file directly if the server isn't running.
 
-- **macOS:** `open "./artifacts/<id>.html"`
-- **Linux:** `xdg-open "./artifacts/<id>.html"`
-- **Windows:** `start "" "./artifacts/<id>.html"`
+The server binds `127.0.0.1:<port>` (default `7777`) and serves
+`/view/<id>`. Check whether it is up, then open the right URL:
 
-Then tell the user the file path and give a one-line summary of what you built.
+```sh
+PORT=7777
+if curl -sf -o /dev/null "http://127.0.0.1:$PORT/artifacts"; then
+  URL="http://127.0.0.1:$PORT/view/<id>"
+else
+  URL="./artifacts/<id>.html"   # server not running — open the file directly
+fi
+```
+
+Then open `$URL` cross-platform:
+
+- **macOS:** `open "$URL"`
+- **Linux:** `xdg-open "$URL"`
+- **Windows:** `start "" "$URL"`
+
+Start the server with `make serve` (or `html-artifacts serve --port <port>
+--dir ./artifacts`) if it isn't already running.
+
+Then tell the user the URL (or file path) and give a one-line summary of what
+you built.
 
 ---
 

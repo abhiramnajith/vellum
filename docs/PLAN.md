@@ -13,7 +13,7 @@ read that once for context, then work from this file.
 - **Keep this file honest.** Tick the checkboxes as you complete them. Update "Current status" below.
 - **Never violate the Invariants** (next section), regardless of which phase you're in. If a task seems to require it, stop and flag it.
 
-**Current status:** _Phase 1 complete (CORE.md + base template + Claude Code adapter; sample artifact verified in light & dark, offline, Mermaid inlined). Awaiting go-ahead for Phase 2 (viewer server)._
+**Current status:** _Phase 2 complete (Go viewer server: index, /view with injected editor shell, path-traversal guards, loopback-only bind — all table-driven/httptest-tested and verified end-to-end in the browser). Awaiting go-ahead for Phase 3 (annotation editor)._
 
 ---
 
@@ -162,11 +162,11 @@ beyond the design doc's prose — treat them as the default and adjust only with
 **Definition of done:** unprompted request for a visual deliverable yields a clean, offline, light/dark-correct HTML file opened in the browser.
 
 ### Phase 2 — Viewer server
-- [ ] Go server (`main.go` + `internal/server`, `internal/storage`): serve artifacts, index page, artifact listing; `go:embed` the editor shell and template.
-- [ ] Slug/path-traversal guards in `internal/storage` with table-driven tests (valid ids, `..`, separators, absolute paths, unicode tricks).
-- [ ] `make serve` target (and/or a systemd user unit) to run it on `127.0.0.1:7777` (port via `--port`).
-- [ ] Update `CORE.md`: open `http://localhost:<port>/view/<id>`, fall back to `xdg-open` on the file if the server isn't running.
-- [ ] Tests: `httptest` for endpoints — list, view, `404`s, traversal rejection, `127.0.0.1` bind.
+- [x] Go server (`main.go` + `internal/server`, `internal/storage`): serve artifacts, index page, artifact listing; `go:embed` the editor shell and index template.
+- [x] Slug/path-traversal guards in `internal/storage` with table-driven tests (valid ids, `..`, separators, absolute paths, unicode tricks, null byte).
+- [x] `make serve` target to run it on `127.0.0.1:7777` (port via `--port`).
+- [x] Update `CORE.md`: open `http://localhost:<port>/view/<id>`, fall back to opening the file if the server isn't running.
+- [x] Tests: `httptest` for endpoints — list, view, `404`s, traversal rejection, `127.0.0.1` bind. _(Also verified end-to-end: curled every endpoint, confirmed loopback-only via LAN-IP refusal, and rendered index + viewer in the browser with the shell injected.)_
 
 **Definition of done:** artifacts open via localhost, index lists them, traversal is refused and tested, server is localhost-only.
 
