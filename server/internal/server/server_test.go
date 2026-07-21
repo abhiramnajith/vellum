@@ -32,6 +32,7 @@ func newTestServer(t *testing.T) (http.Handler, string) {
 func do(t *testing.T, h http.Handler, method, path string) *http.Response {
 	t.Helper()
 	req := httptest.NewRequest(method, path, nil)
+	req.Host = "127.0.0.1:47600"
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec.Result()
@@ -117,6 +118,17 @@ func TestEditorShellIsServed(t *testing.T) {
 	}
 }
 
+func TestMermaidRuntimeIsServed(t *testing.T) {
+	h, _ := newTestServer(t)
+	resp := do(t, h, "GET", "/_vendor/mermaid.min.js")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /_vendor/mermaid.min.js: want 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "javascript") {
+		t.Fatalf("GET /_vendor/mermaid.min.js: want javascript content-type, got %q", ct)
+	}
+}
+
 func TestListenAddrIsLoopbackOnly(t *testing.T) {
 	// The server must never be reachable off-host: the bind address is always
 	// 127.0.0.1, never a wildcard like ":7777" or "0.0.0.0".
@@ -132,6 +144,7 @@ func TestListenAddrIsLoopbackOnly(t *testing.T) {
 func doPost(t *testing.T, h http.Handler, path, body string) *http.Response {
 	t.Helper()
 	req := httptest.NewRequest("POST", path, strings.NewReader(body))
+	req.Host = "127.0.0.1:47600"
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -209,4 +222,57 @@ func readBody(t *testing.T, resp *http.Response) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+func writeFile(t *testing.T, dir, name, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func getViewBody(t *testing.T, h http.Handler, id string) string {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/view/"+id, nil)
+	req.Host = "127.0.0.1"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return readBody(t, rec.Result())
+}
+
+func TestViewInjectsMermaidOnlyWithDiagram(t *testing.T) {
+	dir := t.TempDir()
+	withDiagram := `<!doctype html><html><body><div class="mermaid">graph TD;A-->B;</div></body></html>`
+	plain := `<!doctype html><html><body><h1>no diagram</h1></body></html>`
+	writeFile(t, dir, "with-20260101-000000.html", withDiagram)
+	writeFile(t, dir, "plain-20260101-000000.html", plain)
+	srv, _ := New(storage.New(dir))
+	h := srv.Handler()
+
+	withBody := getViewBody(t, h, "with-20260101-000000")
+	if !strings.Contains(withBody, "/_vendor/mermaid.min.js") {
+		t.Fatal("diagram artifact missing injected Mermaid runtime")
+	}
+	if !strings.Contains(withBody, "mermaid.initialize") || !strings.Contains(withBody, "securityLevel") {
+		t.Fatal("diagram artifact missing Mermaid init (strict/theme)")
+	}
+	plainBody := getViewBody(t, h, "plain-20260101-000000")
+	if strings.Contains(plainBody, "/_vendor/mermaid.min.js") {
+		t.Fatal("plain artifact should not get Mermaid runtime")
+	}
+	if !strings.Contains(plainBody, "/_editor/shell.js") {
+		t.Fatal("editor shell should always be injected")
+	}
+}
+
+func TestViewSetsRestrictiveCSP(t *testing.T) {
+	h, id := newTestServer(t)
+	req := httptest.NewRequest("GET", "/view/"+id, nil)
+	req.Host = "127.0.0.1"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	csp := rec.Result().Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "connect-src 'self'") {
+		t.Fatalf("view CSP missing connect-src 'self': %q", csp)
+	}
 }

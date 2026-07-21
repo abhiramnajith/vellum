@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -59,16 +61,52 @@ func New(store *storage.Store) (*Server, error) {
 	return &Server{store: store, index: index}, nil
 }
 
-// Handler returns the HTTP handler for all routes.
+// Handler returns the HTTP handler for all routes, wrapped so the server only
+// answers loopback requests (defends against DNS rebinding and cross-site
+// writes via the user's browser).
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleRoot)
 	mux.HandleFunc("GET /artifacts", s.handleIndex)
 	mux.HandleFunc("GET /view/{id}", s.handleView)
 	mux.HandleFunc("GET /_editor/shell.js", s.handleShell)
+	mux.HandleFunc("GET /_vendor/mermaid.min.js", s.handleMermaid)
 	mux.HandleFunc("POST /annotations/{id}", s.handlePostAnnotations)
 	mux.HandleFunc("GET /annotations/{id}", s.handleGetAnnotations)
-	return mux
+	return localhostOnly(mux)
+}
+
+func localhostOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackHost(r.Host) {
+			http.Error(w, "forbidden: non-loopback host", http.StatusForbidden)
+			return
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if origin := r.Header.Get("Origin"); origin != "" && !isLoopbackOrigin(origin) {
+				http.Error(w, "forbidden: cross-origin request", http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isLoopbackHost(host string) bool {
+	h := host
+	if hh, _, err := net.SplitHostPort(host); err == nil {
+		h = hh
+	}
+	h = strings.TrimPrefix(strings.TrimSuffix(h, "]"), "[")
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+}
+
+func isLoopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return isLoopbackHost(u.Host)
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +160,9 @@ func (s *Server) handleView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(injectShell(data))
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'")
+	_, _ = w.Write(injectAssets(data))
 }
 
 func (s *Server) handleShell(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +172,20 @@ func (s *Server) handleShell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	_, _ = w.Write(data)
+}
+
+// handleMermaid serves the embedded Mermaid runtime so artifacts can load it
+// from the local server instead of inlining the 3.4 MB library into every
+// generated file.
+func (s *Server) handleMermaid(w http.ResponseWriter, r *http.Request) {
+	data, err := assets.Files.ReadFile("mermaid.min.js")
+	if err != nil {
+		http.Error(w, "mermaid runtime unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
 	_, _ = w.Write(data)
 }
 
@@ -210,17 +264,34 @@ func (s *Server) handleGetAnnotations(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// injectShell inserts the editor <script> just before the closing </body> tag,
-// leaving the artifact's own markup untouched. If there is no </body>, the tag
-// is appended.
-func injectShell(html []byte) []byte {
+// mermaidTag loads the embedded Mermaid runtime and initializes it (strict
+// security, theme by prefers-color-scheme). Injected only when the artifact
+// contains a .mermaid block. Runtime first, then init, so init runs after the
+// runtime has defined window.mermaid.
+const mermaidTag = `<script src="/_vendor/mermaid.min.js"></script>
+<script>
+if (window.mermaid) {
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  window.mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral', fontFamily: 'ui-monospace, Menlo, monospace' });
+}
+</script>`
+
+// injectAssets inserts the editor shell (always) and the Mermaid runtime (only
+// when the artifact contains a .mermaid block) just before </body>, leaving
+// the artifact's own markup untouched. If there is no </body>, the tags are
+// appended.
+func injectAssets(html []byte) []byte {
+	tags := shellTag
+	if bytes.Contains(html, []byte(`class="mermaid"`)) {
+		tags = mermaidTag + "\n" + shellTag
+	}
 	idx := strings.LastIndex(strings.ToLower(string(html)), "</body>")
 	if idx == -1 {
-		return append(append([]byte{}, html...), []byte("\n"+shellTag)...)
+		return append(append([]byte{}, html...), []byte("\n"+tags)...)
 	}
-	out := make([]byte, 0, len(html)+len(shellTag)+2)
+	out := make([]byte, 0, len(html)+len(tags)+2)
 	out = append(out, html[:idx]...)
-	out = append(out, []byte(shellTag+"\n")...)
+	out = append(out, []byte(tags+"\n")...)
 	out = append(out, html[idx:]...)
 	return out
 }

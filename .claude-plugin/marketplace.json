@@ -1,0 +1,12 @@
+{
+  "name": "abhiramnajith-html-artifacts",
+  "owner": { "name": "abhiramnajith" },
+  "description": "Marketplace for the html-artifacts plugin: rich, self-contained HTML artifacts and a local annotation editor for coding agents.",
+  "plugins": [
+    {
+      "name": "html-artifacts",
+      "source": "./",
+      "description": "HTML artifacts + local annotation editor for coding agents."
+    }
+  ]
+}

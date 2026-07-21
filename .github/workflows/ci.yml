@@ -17,8 +17,8 @@ jobs:
     name: vet + test + build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.23"
           # Zero third-party dependencies -> no go.sum -> nothing to cache.
@@ -40,7 +40,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: create release if missing
         env:
           GH_TOKEN: ${{ github.token }}
@@ -70,8 +70,8 @@ jobs:
           - goos: darwin
             goarch: arm64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.23"
           cache: false
@@ -90,3 +90,25 @@ jobs:
           out="html-artifacts-${{ matrix.goos }}-${{ matrix.goarch }}"
           gh release upload "${{ github.ref_name }}" "../$out" \
             --clobber --repo "${{ github.repository }}"
+
+  checksums:
+    name: publish checksums
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # This job never checks out the repo (it only downloads release assets),
+    # so override the workflow-level `working-directory: server` default —
+    # that directory doesn't exist on this runner.
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.ref_name }}"
+          gh release download "$tag" --repo "${{ github.repository }}" --pattern 'html-artifacts-*'
+          sha256sum html-artifacts-* > SHA256SUMS
+          gh release upload "$tag" SHA256SUMS --clobber --repo "${{ github.repository }}"
