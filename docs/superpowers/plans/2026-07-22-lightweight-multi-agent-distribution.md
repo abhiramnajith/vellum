@@ -890,6 +890,11 @@ In the matrix `release` job (or a following aggregation step), after building ea
           gh release upload "$tag" SHA256SUMS --clobber --repo "${{ github.repository }}"
 ```
 
+> **Note (done ahead of this task):** the workflow's action versions were bumped
+> from `actions/checkout@v4` / `actions/setup-go@v5` to `@v5` / `@v6` (the first
+> majors running on Node 24), resolving the "Node.js 20 is deprecated" CI
+> annotation. Keep any new steps here on those majors.
+
 - [ ] **Step 2: Verify workflow YAML parses**
 
 Run: `python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))" 2>/dev/null && echo ok || echo "install pyyaml or eyeball it"`
