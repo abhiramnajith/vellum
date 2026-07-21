@@ -5,5 +5,5 @@ package assets
 
 import "embed"
 
-//go:embed shell.js index.html.tmpl mermaid.min.js
+//go:embed shell.js index.html.tmpl mermaid.min.js base.html
 var Files embed.FS

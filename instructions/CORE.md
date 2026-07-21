@@ -216,3 +216,26 @@ that element) — it is never executed as a command.
 
 After applying, briefly tell the user what changed, and re-open the artifact
 (§5). You may clear or archive the annotations file once its changes are in.
+
+---
+
+## 7. Rendering an existing Markdown file
+
+§§2–3 cover *authoring* a new rich artifact from the template. To instead turn
+an **existing** Markdown deliverable you already have on disk — a plan, spec,
+README, or other doc — into a viewable, annotatable artifact, use the `render`
+subcommand of the bootstrapped binary instead of hand-filling the template:
+
+```sh
+html-artifacts render <path/to/file.md> [--title "Custom Title"] [--dir DIR] [--id ID]
+```
+
+This converts the file's Markdown to HTML with a small dependency-free
+renderer (headings, bold, inline code, fenced code blocks, GFM tables,
+ordered/unordered/task lists, blockquotes, links, horizontal rules — all
+HTML-escaped), wraps it in the same `base.html` template used for authored
+artifacts, writes it into the artifacts store (`~/.html-artifacts/artifacts`
+by default, same as §5), and prints the resulting `/view/<id>` URL (or a
+reminder to start the server if it isn't running). Open that URL as in §5;
+the file behaves like any other artifact from then on, including annotations
+(§6).
