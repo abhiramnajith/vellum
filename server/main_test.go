@@ -33,6 +33,19 @@ func TestRenderCmdWritesArtifact(t *testing.T) {
 	}
 }
 
+func TestRenderCmdHonorsEnvDir(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HTML_ARTIFACTS_DIR", dir)
+	md := filepath.Join(t.TempDir(), "n.md")
+	os.WriteFile(md, []byte("# hi\n"), 0o644)
+	if err := renderCmd([]string{md}); err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := filepath.Glob(filepath.Join(dir, "*.html")); len(m) != 1 {
+		t.Fatalf("render did not honor HTML_ARTIFACTS_DIR, files: %v", m)
+	}
+}
+
 func TestRenderCmdRejectsInvalidID(t *testing.T) {
 	dir := t.TempDir()
 	md := filepath.Join(dir, "n.md")

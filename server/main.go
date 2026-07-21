@@ -88,6 +88,27 @@ func defaultArtifactsDir() string {
 	return filepath.Join(home, ".html-artifacts", "artifacts")
 }
 
+// haHome mirrors ensure-server.sh's HA_HOME resolution:
+// ${HTML_ARTIFACTS_HOME:-~/.html-artifacts}
+func haHome() string {
+	if h := os.Getenv("HTML_ARTIFACTS_HOME"); h != "" {
+		return h
+	}
+	if h, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(h, ".html-artifacts")
+	}
+	return ".html-artifacts"
+}
+
+// renderDefaultDir mirrors ensure-server.sh's DIR resolution:
+// ${HTML_ARTIFACTS_DIR:-$HA_HOME/artifacts}
+func renderDefaultDir() string {
+	if d := os.Getenv("HTML_ARTIFACTS_DIR"); d != "" {
+		return d
+	}
+	return filepath.Join(haHome(), "artifacts")
+}
+
 func slugify(s string) string {
 	s = strings.ToLower(s)
 	s = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(s, "-")
@@ -96,7 +117,7 @@ func slugify(s string) string {
 
 func renderCmd(args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
-	dir := fs.String("dir", defaultArtifactsDir(), "artifacts directory")
+	dir := fs.String("dir", renderDefaultDir(), "artifacts directory")
 	title := fs.String("title", "", "artifact title (defaults to the file name)")
 	idFlag := fs.String("id", "", "explicit artifact id (defaults to slug+timestamp)")
 	if err := fs.Parse(args); err != nil {
@@ -148,19 +169,12 @@ func renderCmd(args []string) error {
 	}
 
 	fmt.Printf("rendered %s -> %s\n", path, dest)
-	if p, err := os.ReadFile(filepath.Join(homeDir(), ".html-artifacts", "port")); err == nil {
+	if p, err := os.ReadFile(filepath.Join(haHome(), "port")); err == nil {
 		fmt.Printf("view: http://127.0.0.1:%s/view/%s\n", strings.TrimSpace(string(p)), id)
 	} else {
 		fmt.Printf("start the server (make serve) then open /view/%s\n", id)
 	}
 	return nil
-}
-
-func homeDir() string {
-	if h, err := os.UserHomeDir(); err == nil {
-		return h
-	}
-	return "."
 }
 
 func usage() {

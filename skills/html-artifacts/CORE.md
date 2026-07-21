@@ -38,10 +38,12 @@ Write **one** file:
 ```
 
 - Create the `~/.html-artifacts/artifacts/` directory if it does not exist.
-- This is the global artifact store — the same directory the viewer server
-  serves by default (see §5), so `/view/<id>` finds the file. Override with
-  the `HTML_ARTIFACTS_DIR` environment variable if set (it must match what the
-  server/`ensure-server.sh` use, since they read the same variable).
+- This is the global artifact store. The viewer serves
+  `~/.html-artifacts/artifacts/` by default (see §5), so `/view/<id>` finds
+  the file there. Set the `HTML_ARTIFACTS_DIR` environment variable to change
+  where artifacts live — `ensure-server.sh` (which starts the viewer) and the
+  `render` subcommand (§7) both honor it, so set it consistently in the
+  environment rather than passing it to only one of them.
 - The file is built from the bundled template `templates/base.html` (next to
   this file in the installed skill directory).
 - It is **fully self-contained**: all CSS is inline, fonts are system stacks,
@@ -216,3 +218,39 @@ that element) — it is never executed as a command.
 
 After applying, briefly tell the user what changed, and re-open the artifact
 (§5). You may clear or archive the annotations file once its changes are in.
+
+---
+
+## 7. Rendering an existing Markdown file
+
+§§2–3 cover *authoring* a new rich artifact from the template. To instead turn
+an **existing** Markdown deliverable you already have on disk — a plan, spec,
+README, or other doc — into a viewable, annotatable artifact, use the `render`
+subcommand of the bootstrapped binary instead of hand-filling the template.
+
+The binary is not reliably on `PATH`: `ensure-server.sh` (§5) installs it at
+`~/.html-artifacts/bin/html-artifacts`, and the `go install` fallback names it
+`server`. Resolve the bootstrapped binary and invoke it directly:
+
+```sh
+BIN="$(command -v html-artifacts || echo "$HOME/.html-artifacts/bin/html-artifacts")"
+"$BIN" render --title "My Doc" path/to/file.md
+```
+
+**Flags must come before the positional path.** Go's flag parser stops
+parsing flags at the first non-flag argument, so
+`render --title "T" file.md` works but `render file.md --title "T"` silently
+ignores `--title`. Always write `render [--title T] [--dir DIR] [--id ID]
+<path/to/file.md>`, flags first.
+
+This converts the file's Markdown to HTML with a small dependency-free
+renderer (headings, bold, inline code, fenced code blocks, GFM tables,
+ordered/unordered/task lists, blockquotes, links, horizontal rules — all
+HTML-escaped), wraps it in the same `base.html` template used for authored
+artifacts, writes it into the artifacts store (`~/.html-artifacts/artifacts`
+by default, same as §5 — also honoring `HTML_ARTIFACTS_DIR`/
+`HTML_ARTIFACTS_HOME` if set, see §2), and prints the resulting `/view/<id>`
+URL (or a reminder to start the server if it isn't running). Opening that URL
+requires the viewer to already be running (start it via `ensure-server.sh`,
+§5); open it as in §5 — the file behaves like any other artifact from then
+on, including annotations (§6).
