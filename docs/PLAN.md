@@ -13,7 +13,7 @@ read that once for context, then work from this file.
 - **Keep this file honest.** Tick the checkboxes as you complete them. Update "Current status" below.
 - **Never violate the Invariants** (next section), regardless of which phase you're in. If a task seems to require it, stop and flag it.
 
-**Current status:** _Not started — Phase 0 next._
+**Current status:** _Phase 0 complete (repo scaffolded, CI green on `main`). Awaiting go-ahead for Phase 1._
 
 ---
 
@@ -145,10 +145,10 @@ beyond the design doc's prose — treat them as the default and adjust only with
 ## Phases
 
 ### Phase 0 — Repo scaffolding
-- [ ] Init repo with the target layout: README stub, MIT `LICENSE`, `Makefile`, empty package skeleton (`server/` compiles).
-- [ ] `install.sh`: copies the chosen adapter; `--agent` and `--local` flags; idempotent re-runs; no `curl|bash`, no network beyond git.
-- [ ] CI (`.github/workflows/ci.yml`): `go vet` + `go test` + build on push/PR; cross-compiled release binaries (linux/amd64, linux/arm64, darwin) on tag.
-- [ ] Push to GitHub; confirm CI green on the empty skeleton.
+- [x] Init repo with the target layout: README stub, MIT `LICENSE`, `Makefile`, empty package skeleton (`server/` compiles).
+- [x] `install.sh`: copies the chosen adapter; `--agent` and `--local` flags; idempotent re-runs; no `curl|bash`, no network beyond git.
+- [x] CI (`.github/workflows/ci.yml`): `go vet` + `go test` + build on push/PR; cross-compiled release binaries (linux/amd64, linux/arm64, darwin) on tag.
+- [x] Push to GitHub; confirm CI green on the empty skeleton.
 
 **Definition of done:** repo cloneable, `make build` succeeds, CI green, `install.sh` runs and is auditable.
 
