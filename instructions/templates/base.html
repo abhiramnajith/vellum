@@ -295,20 +295,5 @@
       <span>{{ARTIFACT_ID}}</span>
     </footer>
   </div>
-
-  <!-- mermaid:begin  (DELETE this whole block if the artifact has no diagrams) -->
-  <script>/* mermaid:runtime — CORE.md inlines the vendored mermaid.min.js here */</script>
-  <script>
-    if (window.mermaid) {
-      const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      window.mermaid.initialize({
-        startOnLoad: true,
-        securityLevel: 'strict',
-        theme: dark ? 'dark' : 'neutral',
-        fontFamily: 'var(--font-mono)'
-      });
-    }
-  </script>
-  <!-- mermaid:end -->
 </body>
 </html>

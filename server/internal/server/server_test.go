@@ -253,6 +253,9 @@ func TestViewInjectsMermaidOnlyWithDiagram(t *testing.T) {
 	if !strings.Contains(withBody, "/_vendor/mermaid.min.js") {
 		t.Fatal("diagram artifact missing injected Mermaid runtime")
 	}
+	if !strings.Contains(withBody, "mermaid.initialize") || !strings.Contains(withBody, "securityLevel") {
+		t.Fatal("diagram artifact missing Mermaid init (strict/theme)")
+	}
 	plainBody := getViewBody(t, h, "plain-20260101-000000")
 	if strings.Contains(plainBody, "/_vendor/mermaid.min.js") {
 		t.Fatal("plain artifact should not get Mermaid runtime")

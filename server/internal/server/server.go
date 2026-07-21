@@ -264,10 +264,17 @@ func (s *Server) handleGetAnnotations(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// mermaidTag loads the embedded Mermaid runtime; injected only when the
-// artifact actually contains a diagram, so plain artifacts never pay the
-// extra request.
-const mermaidTag = `<script src="/_vendor/mermaid.min.js"></script>`
+// mermaidTag loads the embedded Mermaid runtime and initializes it (strict
+// security, theme by prefers-color-scheme). Injected only when the artifact
+// contains a .mermaid block. Runtime first, then init, so init runs after the
+// runtime has defined window.mermaid.
+const mermaidTag = `<script src="/_vendor/mermaid.min.js"></script>
+<script>
+if (window.mermaid) {
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  window.mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral', fontFamily: 'ui-monospace, Menlo, monospace' });
+}
+</script>`
 
 // injectAssets inserts the editor shell (always) and the Mermaid runtime (only
 // when the artifact contains a .mermaid block) just before </body>, leaving
