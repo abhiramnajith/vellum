@@ -13,6 +13,26 @@ Everything runs on `127.0.0.1`. No external hosting, no auth, no runtime depende
 > started). Build notes live in [`docs/PLAN.md`](docs/PLAN.md) and
 > [`docs/design.md`](docs/design.md).
 
+## Supported agents
+
+Any agent that can read files and run shell commands can drive vellum. Four are
+supported out of the box (see [Install](#install) for details):
+
+| Agent | Install | Instructions land in |
+|-------|---------|----------------------|
+| **Claude Code** | `/plugin install vellum` or `./install.sh --agent claude` | auto-invoked skill → `~/.claude/skills/vellum/` |
+| **Codex** | `./install.sh --agent codex` | `~/.codex/AGENTS.md` |
+| **OpenCode** | `./install.sh --agent opencode` | `~/.config/opencode/AGENTS.md` |
+| **Copilot CLI** | `./install.sh --agent copilot` | `~/.copilot/copilot-instructions.md` |
+
+All four defer to one canonical [`instructions/CORE.md`](instructions/CORE.md) —
+no per-agent behavior drift. Adding another agent is a few lines; see
+[`adapters/README.md`](adapters/README.md).
+
+> The Codex, OpenCode, and Copilot CLI adapters are new — their install and
+> idempotency are tested, but live auto-invocation on those agents isn't yet
+> confirmed. Reports welcome.
+
 ## How it works
 
 The contract between agent and tool is **files + HTTP**, never agent APIs:
