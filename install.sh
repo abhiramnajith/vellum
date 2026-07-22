@@ -1,18 +1,22 @@
 #!/usr/bin/env sh
-# install.sh — copy a per-agent adapter (plus the canonical CORE.md) into the
-# agent's skills directory.
+# install.sh — install the vellum adapter for a coding agent.
+#
+# Claude Code uses an auto-invoked skill, so its adapter is a self-contained
+# skill directory under ~/.claude/skills/vellum/. The other agents (Codex,
+# OpenCode, Copilot CLI) read an always-on AGENTS.md-style instruction file, so
+# their adapter installs the shared runtime under ~/.vellum/ and inserts a
+# marked, idempotent block into that agent's instruction file — without
+# clobbering any instructions the user already has there.
 #
 # Deliberately readable and dumb: no `curl | bash`, no network calls beyond the
-# `git clone` you already ran to get here. Re-running it is idempotent — it
-# overwrites the installed adapter in place.
+# `git clone` you already ran to get here. Re-running it is idempotent.
 #
 # Usage:
-#   ./install.sh --agent claude [--local] [--with-binary]
+#   ./install.sh --agent claude|codex|opencode|copilot [--local] [--with-binary]
 #
-#   --agent        claude | codex | opencode | copilot   (v1 implements: claude)
-#   --local        install into ./.claude/skills/ instead of ~/.claude/skills/
-#   --with-binary  eagerly fetch the server binary now, instead of waiting for
-#                  first use (ensure-server.sh fetches it lazily either way)
+#   --agent        which agent to install for
+#   --local        Claude only: install into ./.claude/skills/ instead of ~/
+#   --with-binary  eagerly fetch the server binary now, instead of on first use
 
 set -eu
 
@@ -63,61 +67,106 @@ fi
 # regardless of the caller's working directory.
 REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 CORE="$REPO_ROOT/instructions/CORE.md"
+ENSURE="$REPO_ROOT/scripts/ensure-server.sh"
+BASE_HTML="$REPO_ROOT/instructions/templates/base.html"
+SNIPPET="$REPO_ROOT/adapters/AGENTS.snippet.md"
 
-# Map the agent name to its adapter directory. Only 'claude' is implemented in
-# v1; the other directories exist to prove the adapter pattern.
+VELLUM_HOME="${VELLUM_HOME:-$HOME/.vellum}"
+
+# fetch_binary optionally pre-fetches the server binary via ensure-server.sh.
+fetch_binary() {
+	if [ "$WITH_BINARY" -eq 1 ]; then
+		echo "fetching server binary now (--with-binary)..."
+		if VELLUM_HOME="$VELLUM_HOME" "$ENSURE" >/dev/null; then
+			echo "server binary ready."
+		else
+			echo "warning: failed to fetch the server binary; it will be fetched on first use instead." >&2
+		fi
+	else
+		echo "note: the server binary is fetched automatically on first use (run with --with-binary to fetch it now)."
+	fi
+}
+
+# install_runtime copies the shared runtime (CORE.md, ensure-server.sh, the
+# base.html template) into $VELLUM_HOME so the AGENTS.md snippet can point at it.
+install_runtime() {
+	mkdir -p "$VELLUM_HOME/templates"
+	cp "$CORE" "$VELLUM_HOME/CORE.md"
+	cp "$ENSURE" "$VELLUM_HOME/ensure-server.sh"
+	chmod +x "$VELLUM_HOME/ensure-server.sh"
+	cp "$BASE_HTML" "$VELLUM_HOME/templates/base.html"
+}
+
+# upsert_block inserts (or replaces in place) the vellum instruction block in an
+# agent instruction file, leaving any other content untouched. Idempotent.
+#   $1 = target instruction file
+upsert_block() {
+	target="$1"
+	begin="<!-- vellum:begin (managed by install.sh — edits between these markers are overwritten) -->"
+	end="<!-- vellum:end -->"
+	mkdir -p "$(dirname "$target")"
+	[ -f "$target" ] || : > "$target"
+
+	tmp="$target.vellum.tmp"
+	# Copy everything except a previously-installed block (inclusive of markers).
+	awk -v b="$begin" -v e="$end" '
+		$0 == b { skip = 1 }
+		skip && $0 == e { skip = 0; next }
+		!skip { print }
+	' "$target" > "$tmp"
+
+	# Trim a trailing blank line so re-runs do not accumulate whitespace.
+	# Then append a separating blank line and the fresh block.
+	printf '%s\n\n' "$begin" >> "$tmp"
+	cat "$SNIPPET" >> "$tmp"
+	printf '%s\n' "$end" >> "$tmp"
+
+	mv "$tmp" "$target"
+	echo "updated vellum instructions in $target"
+}
+
 case "$AGENT" in
 claude)
-	ADAPTER_NAME="claude-code"
+	# Auto-invoked skill: self-contained directory install.
+	ADAPTER_DIR="$REPO_ROOT/adapters/claude-code"
+	if [ ! -f "$ADAPTER_DIR/SKILL.md" ]; then
+		echo "error: no SKILL.md found in $ADAPTER_DIR" >&2
+		exit 1
+	fi
+	if [ "$LOCAL" -eq 1 ]; then
+		TARGET="./.claude/skills/vellum"
+	else
+		TARGET="$HOME/.claude/skills/vellum"
+	fi
+	mkdir -p "$TARGET/templates"
+	cp "$ADAPTER_DIR/SKILL.md" "$TARGET/SKILL.md"
+	cp "$CORE" "$TARGET/CORE.md"
+	cp "$ENSURE" "$TARGET/ensure-server.sh"
+	chmod +x "$TARGET/ensure-server.sh"
+	cp "$BASE_HTML" "$TARGET/templates/base.html"
+	echo "installed vellum skill for 'claude' -> $TARGET"
+	fetch_binary
 	;;
-codex | opencode | copilot | copilot-cli)
-	echo "error: the '$AGENT' adapter is not implemented yet (v1 ships Claude Code only)." >&2
-	echo "       The adapter directory exists to prove the pattern; add real content when needed." >&2
-	exit 1
+codex)
+	[ "$LOCAL" -eq 0 ] || echo "note: --local has no effect for codex (global AGENTS.md install)" >&2
+	install_runtime
+	upsert_block "${CODEX_HOME:-$HOME/.codex}/AGENTS.md"
+	fetch_binary
+	;;
+opencode)
+	[ "$LOCAL" -eq 0 ] || echo "note: --local has no effect for opencode (global AGENTS.md install)" >&2
+	install_runtime
+	upsert_block "$HOME/.config/opencode/AGENTS.md"
+	fetch_binary
+	;;
+copilot | copilot-cli)
+	[ "$LOCAL" -eq 0 ] || echo "note: --local has no effect for copilot (global instructions install)" >&2
+	install_runtime
+	upsert_block "${COPILOT_HOME:-$HOME/.copilot}/copilot-instructions.md"
+	fetch_binary
 	;;
 *)
 	echo "error: unknown agent '$AGENT' (expected: claude|codex|opencode|copilot)" >&2
 	exit 2
 	;;
 esac
-
-ADAPTER_DIR="$REPO_ROOT/adapters/$ADAPTER_NAME"
-
-if [ ! -f "$ADAPTER_DIR/SKILL.md" ]; then
-	echo "error: no SKILL.md found in $ADAPTER_DIR" >&2
-	exit 1
-fi
-
-if [ "$LOCAL" -eq 1 ]; then
-	SKILLS_ROOT="./.claude/skills"
-else
-	SKILLS_ROOT="$HOME/.claude/skills"
-fi
-
-TARGET="$SKILLS_ROOT/vellum"
-
-mkdir -p "$TARGET"
-# Copy the thin adapter, the canonical CORE.md it defers to, the
-# ensure-server.sh bootstrap script CORE.md shells out to, and the base.html
-# template authoring needs. Mermaid is embedded in the server binary now (not
-# copied here) — ensure-server.sh fetches that binary lazily on first use.
-# Overwriting in place keeps re-runs idempotent.
-cp "$ADAPTER_DIR/SKILL.md" "$TARGET/SKILL.md"
-cp "$CORE" "$TARGET/CORE.md"
-cp "$REPO_ROOT/scripts/ensure-server.sh" "$TARGET/ensure-server.sh"
-chmod +x "$TARGET/ensure-server.sh"
-mkdir -p "$TARGET/templates"
-cp "$REPO_ROOT/instructions/templates/base.html" "$TARGET/templates/base.html"
-
-echo "installed vellum adapter for '$AGENT' -> $TARGET"
-
-if [ "$WITH_BINARY" -eq 1 ]; then
-	echo "fetching server binary now (--with-binary)..."
-	if VELLUM_HOME="$HOME/.vellum" "$REPO_ROOT/scripts/ensure-server.sh" >/dev/null; then
-		echo "server binary ready."
-	else
-		echo "warning: failed to fetch the server binary; it will be fetched on first use instead." >&2
-	fi
-else
-	echo "note: the server binary is fetched automatically on first use (run with --with-binary to fetch it now)."
-fi
