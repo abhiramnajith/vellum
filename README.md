@@ -47,15 +47,25 @@ up the new skill.
 ```sh
 git clone https://github.com/abhiramnajith/vellum
 cd vellum
-./install.sh --agent claude          # installs the adapter into ~/.claude/skills/
-./install.sh --agent claude --local  # or into ./.claude/skills/ (project-local)
+./install.sh --agent claude     # Claude Code   -> ~/.claude/skills/vellum/
+./install.sh --agent codex      # Codex         -> ~/.codex/AGENTS.md
+./install.sh --agent opencode   # OpenCode      -> ~/.config/opencode/AGENTS.md
+./install.sh --agent copilot    # Copilot CLI   -> ~/.copilot/copilot-instructions.md
 ```
 
-`install.sh` is agent-agnostic by design (`--agent codex|opencode|copilot`
-directories exist to prove the pattern; only `claude` ships real content in
-v1). It makes no network calls beyond `git`, and re-running it is idempotent.
-Pass `--with-binary` to eagerly fetch the server binary during install instead
-of waiting for first use.
+For **Claude Code**, the adapter is an auto-invoked skill directory (add
+`--local` to install into `./.claude/skills/` for the current project instead).
+
+For **Codex, OpenCode, and Copilot CLI**, which read an always-on `AGENTS.md`-style
+instruction file, `install.sh` installs the shared runtime once to `~/.vellum/`
+and inserts a managed `<!-- vellum:begin -->…<!-- vellum:end -->` block into that
+agent's instruction file. Re-running replaces the block in place and **never
+touches other instructions** in the file. (`CODEX_HOME` / `COPILOT_HOME` are
+honored if set.)
+
+`install.sh` makes no network calls beyond `git`, and re-running it is idempotent.
+The `vellum` binary is fetched lazily on first use — pass `--with-binary` to fetch
+it eagerly during install.
 
 ## Using it
 
@@ -99,10 +109,12 @@ changes, and re-opens it.
 
 The core is agent-neutral — artifacts are `.html` files and the server speaks
 plain HTTP, so any agent that can read files and run shell commands can join.
-v1 ships only the Claude Code adapter; the `adapters/codex`, `adapters/opencode`,
-and `adapters/copilot-cli` directories mark where thin per-agent adapters go
-(each just needs that agent's trigger format plus a pointer to
-[`instructions/CORE.md`](instructions/CORE.md)).
+**Claude Code, Codex, OpenCode, and Copilot CLI** are supported by `install.sh`
+(see [Install](#install)); Claude Code gets an auto-invoked skill, the others get
+a managed block in their `AGENTS.md`-style instruction file. All of them defer to
+the one canonical [`instructions/CORE.md`](instructions/CORE.md) — see
+[`adapters/README.md`](adapters/README.md) for the pattern and how to add another
+agent.
 
 ## Build & run (from source)
 
